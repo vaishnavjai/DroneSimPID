@@ -5,6 +5,8 @@ Simulates altitude and attitude control using cascaded PID loops.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import csv
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
@@ -16,9 +18,9 @@ from typing import NamedTuple
 @dataclass
 class PIDGains: 
     """PID controller gain parameters."""
-    kp:  float = 0.0      # Proportional gain
-    ki: float = 0.0      # Integral gain
-    kd:  float = 0.0      # Derivative gain
+    kp:  float = 15   # Proportional gain
+    ki: float = 2      # Integral gain
+    kd:  float = 8     # Derivative gain
     limit:  float = 10.0  # Output saturation limit
 
 
@@ -26,7 +28,7 @@ class PIDGains:
 class DroneParams:
     """Physical properties of the quadcopter."""
     mass: float = 1.4           # kg
-    arm_length: float = 0.22    # meters (motor to center)
+    arm_length: float = 0.18    # meters (motor to center)
     Ixx: float = 0.015          # Roll moment of inertia (kg·m²)
     Iyy:  float = 0.015          # Pitch moment of inertia (kg·m²)
     Izz: float = 0.025          # Yaw moment of inertia (kg·m²)
@@ -330,14 +332,14 @@ def plot_results(history:  dict, sim_config: SimConfig) -> None:
     fig.suptitle('Quadcopter PID Control Response', fontsize=14, fontweight='bold')
     
     plots = [
-        ('altitude', sim_config.target_altitude, 'Altitude (m)', 'tab: blue'),
+        ('altitude', sim_config.target_altitude, 'Altitude (m)', 'tab:blue'),
         ('roll', sim_config.target_roll, 'Roll (rad)', 'tab:orange'),
         ('pitch', sim_config. target_pitch, 'Pitch (rad)', 'tab:green'),
         ('yaw', sim_config.target_yaw, 'Yaw (rad)', 'tab:red'),
     ]
     
     for ax, (key, target, ylabel, color) in zip(axes.flat, plots):
-        ax.plot(history['time'], history[key], color=color, linewidth=1. 5, label='Actual')
+        ax.plot(history['time'], history[key], color=color, linewidth=1.5, label='Actual')
         ax.axhline(target, color='gray', linestyle='--', linewidth=1, label='Target')
         ax.set_xlabel('Time (s)')
         ax.set_ylabel(ylabel)
@@ -345,8 +347,36 @@ def plot_results(history:  dict, sim_config: SimConfig) -> None:
         ax.grid(True, alpha=0.3)
         ax.legend(loc='best')
     
+    # Ensure output folder exists and save results for headless environments
+    out_dir = os.path.join(os.getcwd(), "results")
+    os.makedirs(out_dir, exist_ok=True)
+
+    fig_path = os.path.join(out_dir, "simulation_results.png")
+    fig.savefig(fig_path, dpi=200, bbox_inches='tight')
+
+    # Save time-series history as CSV
+    csv_path = os.path.join(out_dir, "simulation_history.csv")
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['time', 'altitude', 'roll', 'pitch', 'yaw'])
+        for i, t in enumerate(history['time']):
+            writer.writerow([
+                float(t),
+                float(history['altitude'][i]),
+                float(history['roll'][i]),
+                float(history['pitch'][i]),
+                float(history['yaw'][i])
+            ])
+
+    print(f"Saved plot to: {fig_path}")
+    print(f"Saved history CSV to: {csv_path}")
+
     plt.tight_layout()
-    plt.show()
+    # Show interactively only if a display is available
+    if os.environ.get('DISPLAY'):
+        plt.show()
+    else:
+        plt.close(fig)
 
 
 # ============================================================================
